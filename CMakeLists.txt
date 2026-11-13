@@ -58,4 +58,16 @@ target_link_libraries(skeleton PRIVATE aprutil-1)
 option(SKELETON_BUILD_HTTPD "Build Apache HTTP Server for local testing" ON)
 if(SKELETON_BUILD_HTTPD)
     include(cmake/BuildHttpd.cmake)
+
+    add_library(mod_test MODULE src/mod_test.c)
+    add_dependencies(mod_test httpd-server)
+    target_include_directories(mod_test PRIVATE "${HTTPD_TEST_ROOT}/include")
+    target_compile_definitions(mod_test PRIVATE WINNT APR_DECLARE_IMPORT APU_DECLARE_IMPORT)
+    target_link_libraries(mod_test PRIVATE "${HTTPD_TEST_ROOT}/lib/libhttpd.lib")
+    set_target_properties(mod_test PROPERTIES
+        PREFIX ""
+        SUFFIX ".so"
+        LIBRARY_OUTPUT_DIRECTORY "${HTTPD_TEST_ROOT}/modules"
+        RUNTIME_OUTPUT_DIRECTORY "${HTTPD_TEST_ROOT}/modules"
+    )
 endif()

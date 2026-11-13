@@ -7,6 +7,16 @@ LoadModule authz_host_module modules/mod_authz_host.so
 LoadModule dir_module modules/mod_dir.so
 LoadModule mime_module modules/mod_mime.so
 
+LoadModule info_module modules/mod_info.so
+<Location "/server-info">
+    SetHandler server-info
+</Location>
+
+LoadModule test_module modules/mod_test.so
+<Location "/test">
+    SetHandler test-handler
+</Location>
+
 PidFile logs/test-httpd.pid
 ErrorLog logs/test-error.log
 LogLevel warn

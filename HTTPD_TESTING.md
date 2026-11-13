@@ -47,6 +47,45 @@ the separate `test-httpd.conf` binds only to loopback, uses port 8080, limits
 access to local clients, and disables directory listings and `.htaccess`.
 Do not expose this development configuration to a network.
 
+## Build and use mod_test
+
+The project's loadable module is `src\mod_test.c`. Build it with:
+
+```powershell
+cmake --build build --config Debug --target mod_test
+```
+
+This also builds the server and places `mod_test.so` in
+`build\httpd\Debug\modules`. It links against the server's import library, not
+the application's static APR libraries. Stop any running server before
+rebuilding the module, since Windows locks loaded modules.
+
+Enable the module explicitly when checking and starting the server:
+
+```powershell
+& $httpd -D TEST_MODULE -f "$server\conf\test-httpd.conf" -t
+& $httpd -D TEST_MODULE -f "$server\conf\test-httpd.conf" -M
+& $httpd -D TEST_MODULE -f "$server\conf\test-httpd.conf"
+```
+
+In another terminal:
+
+```powershell
+curl.exe --fail --show-error http://127.0.0.1:8080/test
+curl.exe --head http://127.0.0.1:8080/test
+curl.exe --include --request POST http://127.0.0.1:8080/test
+```
+
+`GET /test` responds with HTTP 200 and `mod_test is running.` as plain text.
+`HEAD /test` returns the same headers without a body. Other methods return
+HTTP 405 and an `Allow` header. The handler is assigned only to the exact
+`/test` path; static files and other URLs keep their normal behavior.
+Without `-D TEST_MODULE`, the server runs without loading `mod_test`.
+
+The handler name is `test-handler`, the exported module symbol is
+`test_module`, and `LoadModule test_module modules/mod_test.so` loads it.
+The `mod_test` target is available when `SKELETON_BUILD_HTTPD` is enabled.
+
 ## Use in future tests
 
 Place static fixtures in `build\httpd\Debug\test-htdocs`, then point the
@@ -71,10 +110,11 @@ process in a `finally` block. Forced termination can leave a stale PID file
 and produce an unclean-shutdown warning on the next run. Use a dedicated port
 and server directory for parallel test jobs; never stop processes by name.
 
-The baseline enables HTTP/1.1 static hosting only: it does not enable TLS,
-HTTP/2, CGI, or a reverse proxy. Those require additional modules, dependencies,
-and explicit configuration. PCRE2 JIT is disabled; regex matching uses the
-interpreter without requiring PCRE2's nested SLJIT submodule.
+The baseline enables HTTP/1.1 static hosting and optionally `mod_test`; it does
+not enable TLS, HTTP/2, CGI, or a reverse proxy. Those require additional
+modules, dependencies, and explicit configuration. PCRE2 JIT is disabled;
+regex matching uses the interpreter without requiring PCRE2's nested SLJIT
+submodule.
 
 ## Configuration and troubleshooting
 
