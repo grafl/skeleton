@@ -54,3 +54,8 @@ target_include_directories(skeleton PRIVATE
 )
 target_compile_definitions(skeleton PRIVATE APU_DECLARE_STATIC)
 target_link_libraries(skeleton PRIVATE aprutil-1)
+
+option(SKELETON_BUILD_HTTPD "Build Apache HTTP Server for local testing" ON)
+if(SKELETON_BUILD_HTTPD)
+    include(cmake/BuildHttpd.cmake)
+endif()

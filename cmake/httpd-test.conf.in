@@ -1,0 +1,29 @@
+ServerRoot "@HTTPD_TEST_ROOT@"
+Listen 127.0.0.1:8080
+ServerName 127.0.0.1:8080
+
+LoadModule authz_core_module modules/mod_authz_core.so
+LoadModule authz_host_module modules/mod_authz_host.so
+LoadModule dir_module modules/mod_dir.so
+LoadModule mime_module modules/mod_mime.so
+
+PidFile logs/test-httpd.pid
+ErrorLog logs/test-error.log
+LogLevel warn
+ServerTokens Prod
+ServerSignature Off
+
+TypesConfig conf/mime.types
+DirectoryIndex index.html
+DocumentRoot "@HTTPD_TEST_ROOT@/test-htdocs"
+
+<Directory />
+    AllowOverride None
+    Require all denied
+</Directory>
+
+<Directory "@HTTPD_TEST_ROOT@/test-htdocs">
+    Options None
+    AllowOverride None
+    Require local
+</Directory>
