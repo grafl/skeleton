@@ -2,11 +2,13 @@
 
 #include "httpd.h"
 #include "http_config.h"
+#include "http_log.h"
 #include "http_protocol.h"
 #include "http_request.h"
 
+#include "test1.h"
+
 static int test_handler(request_rec *r) {
-    static const char response[] = "mod_test is running.\n";
     if (r->handler == NULL || strcmp(r->handler, "test-handler") != 0) {
         return DECLINED;
     }
@@ -18,8 +20,14 @@ static int test_handler(request_rec *r) {
     if (status != OK) {
         return status;
     }
+    const char *response = test1_message(r->pool);
+    if (response == NULL) {
+        ap_log_rerror(APLOG_MARK, APLOG_ERR, APR_ENOMEM, r,
+                      "test1 could not allocate the response");
+        return HTTP_INTERNAL_SERVER_ERROR;
+    }
     ap_set_content_type(r, "text/plain; charset=utf-8");
-    ap_set_content_length(r, sizeof(response) - 1);
+    ap_set_content_length(r, (apr_off_t)strlen(response));
     if (r->header_only) {
         return OK;
     }

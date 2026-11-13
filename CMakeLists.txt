@@ -59,11 +59,30 @@ option(SKELETON_BUILD_HTTPD "Build Apache HTTP Server for local testing" ON)
 if(SKELETON_BUILD_HTTPD)
     include(cmake/BuildHttpd.cmake)
 
+    add_library(test1 SHARED src/test1.c)
+    add_dependencies(test1 httpd-server)
+    include(GenerateExportHeader)
+    generate_export_header(test1
+        EXPORT_FILE_NAME "${CMAKE_CURRENT_BINARY_DIR}/include/test1_export.h"
+    )
+    target_include_directories(test1 PUBLIC
+        include
+        "${CMAKE_CURRENT_BINARY_DIR}/include"
+        "${HTTPD_TEST_ROOT}/include"
+    )
+    target_compile_definitions(test1 PUBLIC WINNT APR_DECLARE_IMPORT)
+    target_link_libraries(test1 PRIVATE "${HTTPD_TEST_ROOT}/lib/libapr-1.lib")
+    set_target_properties(test1 PROPERTIES
+        PREFIX ""
+        LIBRARY_OUTPUT_DIRECTORY "${HTTPD_TEST_ROOT}/bin"
+        RUNTIME_OUTPUT_DIRECTORY "${HTTPD_TEST_ROOT}/bin"
+    )
+
     add_library(mod_test MODULE src/mod_test.c)
     add_dependencies(mod_test httpd-server)
     target_include_directories(mod_test PRIVATE "${HTTPD_TEST_ROOT}/include")
     target_compile_definitions(mod_test PRIVATE WINNT APR_DECLARE_IMPORT APU_DECLARE_IMPORT)
-    target_link_libraries(mod_test PRIVATE "${HTTPD_TEST_ROOT}/lib/libhttpd.lib")
+    target_link_libraries(mod_test PRIVATE test1 "${HTTPD_TEST_ROOT}/lib/libhttpd.lib")
     set_target_properties(mod_test PROPERTIES
         PREFIX ""
         SUFFIX ".so"

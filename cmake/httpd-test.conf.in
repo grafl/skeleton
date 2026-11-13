@@ -12,6 +12,7 @@ LoadModule info_module modules/mod_info.so
     SetHandler server-info
 </Location>
 
+LoadFile bin/test1.dll
 LoadModule test_module modules/mod_test.so
 <Location "/test">
     SetHandler test-handler
