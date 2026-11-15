@@ -83,11 +83,12 @@ Restore their submodule registration, or provision the source directories
 explicitly. For a checkout where those directories do **not** already exist:
 
 ```powershell
-git submodule update --init -- external/openssl
+git submodule update --init
 git clone --branch 1.7.6 --depth 1 https://github.com/apache/apr.git .\external\apr
 git clone --branch 1.6.6 --depth 1 https://github.com/apache/apr-util.git .\external\apr-util
 git clone --branch R_2_10_0 --depth 1 https://github.com/libexpat/libexpat.git .\external\expat
 git clone --branch pcre2-10.49 --depth 1 https://github.com/PCRE2Project/pcre2.git .\external\pcre2
+git clone --branch openssl-4.1.0 --depth 1 https://github.com/openssl/openssl.git .\external\openssl
 git clone --branch 2.4.71 --depth 1 https://github.com/apache/httpd.git .\external\httpd
 ```
 
