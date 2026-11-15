@@ -1,13 +1,17 @@
 # Skeleton
 
 A Windows-focused C17 project demonstrating Apache Portable Runtime (APR),
-APR-util, and a custom Apache HTTP Server module. Project version: **0.0.1**.
+APR-util, OpenSSL, and a custom Apache HTTP Server module. Project version:
+**0.0.1**.
 
 The project has two separate execution paths:
 
-- `skeleton.exe`: a console application using statically linked APR and APR-util.
+- `skeleton.exe`: a console application using statically linked APR and APR-util,
+  with OpenSSL libraries linked when OpenSSL support is enabled.
 - `httpd.exe`: a local web server loading `test1.dll` and `mod_test.so`, which
   use the server's shared APR.
+- `openssl_smoke.exe`: an integration test linked to the OpenSSL static
+  libraries; it is not part of the server request path.
 
 This is a development and integration-testing skeleton, not a production web
 application. The console application does not start or embed the web server.
@@ -20,6 +24,8 @@ application. The console application does not start or embed the web server.
 | `test1` | `src\test1.c`, `include\test1.h` | Exports `test1_message(apr_pool_t *)`, allocating a response using `apr_pstrdup`. |
 | `mod_test` | `src\mod_test.c` | Registers Apache's `test-handler`, calls `test1_message` with the request pool, and returns a plain-text HTTP response. |
 | `httpd-server` | `cmake\BuildHttpd.cmake` | Builds and stages Apache and its dependencies using isolated CMake external projects. |
+| `openssl` | `external\openssl`, `cmake\BuildOpenSSL.cmake` | Builds the pinned OpenSSL 4.1.0 headers and static libraries for CMake consumers. |
+| `openssl_smoke` | `tests\openssl_smoke.c` | Checks that a consumer can create a TLS context and compute a SHA-256 digest. |
 
 The server-side request flow is:
 
@@ -47,12 +53,12 @@ Consequently, `httpd -M` lists `test_module`, but not `test1`.
 Use Windows with:
 
 - Visual Studio's C++ build tools and Windows SDK, with a C17-capable MSVC.
-- CMake **3.17 or newer**. The root declares 3.15, but bundled Expat requires
-  3.17. Modern CMake is supported through compatibility settings for legacy APR
-  build scripts.
+- CMake **3.20 or newer**, required for configuration-dependent OpenSSL
+  build byproducts. Compatibility settings support the legacy APR build scripts.
 - Git to obtain the dependencies.
-- Perl for the httpd installation steps. The build also looks for Perl bundled
-  with Git for Windows.
+- Native Windows Perl (such as Strawberry Perl) for OpenSSL. Set
+  `OPENSSL_PERL_EXECUTABLE` if it is not on `PATH`; Git's MSYS Perl is not a
+  substitute. The httpd installation also uses Perl.
 - PowerShell for the examples below; `curl.exe` for HTTP checks.
 
 The checked-out dependency tags are:
@@ -64,18 +70,20 @@ The checked-out dependency tags are:
 | [Expat](https://github.com/libexpat/libexpat) | `external\expat` | `R_2_10_0` | APR-util's XML dependency. |
 | [PCRE2](https://github.com/PCRE2Project/pcre2) | `external\pcre2` | `pcre2-10.49` | httpd's regular-expression support. |
 | [Apache HTTP Server](https://github.com/apache/httpd) | `external\httpd` | `2.4.71` | Local server and module API. |
+| [OpenSSL](https://github.com/openssl/openssl) | `external\openssl` | `openssl-4.1.0` | Static cryptography and TLS libraries. |
 
 ### Dependency checkout caveat
 
-This snapshot tracks `.gitmodules`, but its Git index has no submodule gitlink
-entries for the dependency directories, and `.gitignore` ignores `external\`.
-The dependencies are present locally, but a fresh clone must not assume that
-`git submodule update --init --recursive` alone will populate them.
+OpenSSL is a registered submodule. The other dependency directories have
+`.gitmodules` entries but no tracked gitlinks, and `.gitignore` ignores
+`external\`. A fresh clone must not assume that `git submodule update
+--init --recursive` alone will populate all dependencies.
 
 Restore their submodule registration, or provision the source directories
 explicitly. For a checkout where those directories do **not** already exist:
 
 ```powershell
+git submodule update --init -- external/openssl
 git clone --branch 1.7.6 --depth 1 https://github.com/apache/apr.git .\external\apr
 git clone --branch 1.6.6 --depth 1 https://github.com/apache/apr-util.git .\external\apr-util
 git clone --branch R_2_10_0 --depth 1 https://github.com/libexpat/libexpat.git .\external\expat
@@ -83,7 +91,16 @@ git clone --branch pcre2-10.49 --depth 1 https://github.com/PCRE2Project/pcre2.g
 git clone --branch 2.4.71 --depth 1 https://github.com/apache/httpd.git .\external\httpd
 ```
 
-These commands provision sources, not parent-repository submodule tracking.
+The `git submodule update` command checks out the tracked OpenSSL gitlink;
+the other clone commands only provision sources and do not register them as
+submodules in the parent repository. OpenSSL is pinned to commit
+`2f4e3a5fec05394068cfa7379890ab552483a8a6` (tag `openssl-4.1.0`). To verify:
+
+```powershell
+git submodule status -- external/openssl
+git -C .\external\openssl describe --tags --exact-match HEAD
+```
+
 PCRE2 JIT is disabled, so the server build does not require its nested SLJIT
 submodule.
 
@@ -97,7 +114,9 @@ cmake --build build --config Debug --parallel 4
 ```
 
 The default build includes the console program, server, shared library, and
-module. To build selected components:
+module, as well as static OpenSSL libraries. If native Windows Perl is not on
+`PATH`, pass `-DOPENSSL_PERL_EXECUTABLE=C:\path\to\perl.exe` when configuring.
+To build selected components:
 
 | Command | Result |
 | --- | --- |
@@ -105,6 +124,7 @@ module. To build selected components:
 | `cmake --build build --config Debug --target httpd-server` | Staged upstream server and dependencies, but not the project's DLL/module. |
 | `cmake --build build --config Debug --target test1` | Server dependencies and `test1.dll`. |
 | `cmake --build build --config Debug --target mod_test` | Complete custom server runtime, including `test1.dll` and `mod_test.so`. |
+| `cmake --build build --config Debug --target openssl` | Build and stage the OpenSSL headers and static libraries. |
 
 **Build `mod_test` before using `test-httpd.conf`**, since that configuration
 unconditionally loads both custom binaries.
@@ -115,6 +135,11 @@ For an application-only build without the server, module, or shared library:
 cmake -S . -B build-app -DSKELETON_BUILD_HTTPD=OFF
 cmake --build build-app --config Debug --target skeleton
 ```
+
+OpenSSL builds by default even if the server is disabled. Pass
+`-DSKELETON_BUILD_OPENSSL=OFF` to remove it from `skeleton` and skip its native
+Perl requirement. `skeleton` does not currently call the OpenSSL API; static
+linking may omit unused OpenSSL code. httpd TLS remains disabled.
 
 Replace `Debug` consistently with `Release` for release builds. The documented
 output paths assume a multi-configuration Visual Studio generator; the
@@ -130,6 +155,10 @@ Do not mix DLLs and import libraries from different configurations.
 | Shared library | `build\httpd\Debug\bin\test1.dll` |
 | Apache module | `build\httpd\Debug\modules\mod_test.so` |
 | Generated library export header | `build\include\test1_export.h` |
+| OpenSSL installation | `build\openssl\2f4e3a5fec05\Debug` |
+| OpenSSL headers | `build\openssl\2f4e3a5fec05\Debug\include\openssl` |
+| OpenSSL static libraries | `build\openssl\2f4e3a5fec05\Debug\lib\libcrypto.lib` and `libssl.lib` |
+| OpenSSL smoke test | `build\Debug\openssl_smoke.exe` |
 | Test configuration | `build\httpd\Debug\conf\test-httpd.conf` |
 | Static HTTP fixtures | `build\httpd\Debug\test-htdocs` |
 | Server error log | `build\httpd\Debug\logs\test-error.log` |
@@ -209,6 +238,38 @@ The application and web-server paths intentionally use different APR builds:
    and httpd's import library. They must use the server's APR DLL, not the
    console application's static APR, when sharing request pools.
 
+OpenSSL has no upstream CMake build. `cmake\BuildOpenSSL.cmake` invokes its
+Windows Perl `Configure` script and MSVC `nmake` through `ExternalProject`,
+with separate build and install directories per Git revision and configuration.
+Changing the submodule checkout selects a new revision-specific build, rather
+than reusing libraries built for another revision. For the pinned release,
+these are `build\openssl-build\2f4e3a5fec05\Debug` and
+`build\openssl\2f4e3a5fec05\Debug`.
+
+The integration builds static libraries with `no-shared`, `no-asm`, and
+`no-tests`, and stages development headers and libraries. It supports the
+Windows MSVC x86, x64, and ARM64 targets selected by the CMake generator. The
+build invokes Visual Studio's `vcvarsall.bat`; use a Visual Studio generator
+and native Windows Perl. No NASM assembler is required with `no-asm`.
+
+It exposes `OpenSSL::Crypto` and `OpenSSL::SSL` imported CMake targets;
+`OpenSSL::SSL` also links `OpenSSL::Crypto`. For example, another target in
+this CMake project can use:
+
+```cmake
+target_link_libraries(my_target PRIVATE OpenSSL::SSL)
+```
+
+Include OpenSSL headers such as `<openssl/ssl.h>` and `<openssl/evp.h>` in that
+target's source. Build the target normally; the imported target's dependency
+builds OpenSSL first. For crypto-only code, link `OpenSSL::Crypto` instead.
+`tests\openssl_smoke.c` demonstrates both TLS context and digest API use.
+
+When enabled, `skeleton` links `OpenSSL::SSL` and transitively
+`OpenSSL::Crypto`. OpenSSL is not linked to `test1`, `mod_test`, or httpd.
+Building it does not enable HTTPS, install certificates, configure `mod_ssl`,
+or change the server's loopback-only HTTP listener.
+
 The root build temporarily creates an APR library-check placeholder to satisfy
 APR-util's configure-time file check. It then removes that placeholder from
 the target's link properties and connects APR-util to the actual in-tree APR
@@ -223,9 +284,18 @@ directory and renders the configuration and sample page from templates.
 
 ## Development and testing
 
-There is currently no project-owned automated test suite or registered CTest
-suite. The build disables upstream test builds by default; the commands above
-are manual smoke checks, not a full test suite.
+The project has an OpenSSL smoke test that creates a TLS context and verifies
+a SHA-256 digest. With OpenSSL and `BUILD_TESTING` enabled, run:
+
+```powershell
+cmake --build build --config Debug --target openssl_smoke
+ctest --test-dir build -C Debug -R "^openssl_smoke$" --output-on-failure
+```
+
+Repeat with `Release` to test that configuration. These checks exercise the
+staged libraries, not HTTPS requests or the complete upstream OpenSSL suite.
+Upstream test builds are disabled; the HTTP commands above are manual smoke
+checks, not a full server test suite.
 
 Use additional files in `build\httpd\Debug\test-htdocs` as static fixtures.
 For automated integration checks, start a dedicated server, wait for a ready
@@ -249,6 +319,13 @@ current implementation in `src\test1.c`.
   `test1.dll`, APR DLLs, or a configuration mismatch can prevent module loading.
 - External build trees are under `build\httpd-build\<target>\<configuration>`.
   Step logs are under `build\<target>-prefix\src\<target>-stamp`.
+- OpenSSL uses `build\openssl-build\<revision>\<configuration>` for its
+  build and `build\openssl\<revision>\<configuration>` for its staged headers
+  and libraries. Logs are under `build\openssl-prefix\src\openssl-stamp`.
+- For a missing or incompatible Perl error, install native Windows Perl and
+  reconfigure with `-DOPENSSL_PERL_EXECUTABLE=C:\path\to\perl.exe`. MSYS/Cygwin
+  Perl is not supported by this MSVC build. To omit OpenSSL entirely, configure
+  with `-DSKELETON_BUILD_OPENSSL=OFF`.
 - APR and APR-util may emit upstream CMake deprecation warnings. A cached
   compiler path can also become invalid after a Visual Studio update; use a
   new build directory if necessary.
@@ -267,6 +344,7 @@ src\
     test1.c             APR-backed response allocation
     mod_test.c          Apache request handler and module registration
 cmake\                  Dependency builds, runtime templates, install helpers
+tests\openssl_smoke.c   OpenSSL link and runtime smoke test
 external\               Third-party dependency source trees
 HTTPD_TESTING.md         Additional local HTTP testing instructions
 build\                  Generated outputs; ignored by Git

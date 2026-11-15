@@ -9,6 +9,8 @@
 
 #include <apu_version.h>
 
+#include <openssl/ssl.h>
+
 #include "skeleton.h"
 
 int main(void) {
@@ -44,8 +46,10 @@ int main(void) {
     }
 
     apr_base64_encode(encoded_name, name, (int)strlen(name));
-    printf("%s - %s! (APR %s, APR/Util %s, Base64 %s)\n",
-           name, SKELETON_VERSION, apr_version_string(), apu_version_string(), encoded_name);
+    SSL_library_init();
+    printf("%s - %s! (APR %s, APR/Util %s, Base64 %s, OpenSSL %s)\n",
+           name, SKELETON_VERSION, apr_version_string(), 
+           apu_version_string(), encoded_name, OpenSSL_version(OPENSSL_VERSION));
 
     apr_pool_destroy(pool);
     apr_terminate();

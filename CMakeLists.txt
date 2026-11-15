@@ -1,10 +1,21 @@
-cmake_minimum_required(VERSION 3.15)
+cmake_minimum_required(VERSION 3.20)
 
 project(skeleton VERSION 0.0.1 LANGUAGES C)
 
 set(CMAKE_C_STANDARD 17)
 set(CMAKE_C_STANDARD_REQUIRED ON)
 set(CMAKE_C_EXTENSIONS OFF)
+
+option(SKELETON_BUILD_OPENSSL "Build the OpenSSL submodule" ON)
+if(SKELETON_BUILD_OPENSSL)
+    include(cmake/BuildOpenSSL.cmake)
+    include(CTest)
+    if(BUILD_TESTING)
+        add_executable(openssl_smoke tests/openssl_smoke.c)
+        target_link_libraries(openssl_smoke PRIVATE OpenSSL::SSL)
+        add_test(NAME openssl_smoke COMMAND openssl_smoke)
+    endif()
+endif()
 
 add_executable(skeleton)
 target_sources(skeleton PRIVATE src/main.c)
@@ -54,6 +65,9 @@ target_include_directories(skeleton PRIVATE
 )
 target_compile_definitions(skeleton PRIVATE APU_DECLARE_STATIC)
 target_link_libraries(skeleton PRIVATE aprutil-1)
+if(SKELETON_BUILD_OPENSSL)
+    target_link_libraries(skeleton PRIVATE OpenSSL::SSL)
+endif()
 
 option(SKELETON_BUILD_HTTPD "Build Apache HTTP Server for local testing" ON)
 if(SKELETON_BUILD_HTTPD)
