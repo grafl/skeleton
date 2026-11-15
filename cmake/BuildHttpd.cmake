@@ -90,11 +90,43 @@ _httpd_dependency(httpd-pcre2 external/pcre2
     -DPCRE2_SUPPORT_JIT:BOOL=OFF
 )
 
+set(_httpd_dependencies httpd-apr-util httpd-pcre2)
+if(SKELETON_BUILD_OPENSSL)
+    list(APPEND _httpd_dependencies openssl)
+    # httpd's abs expects applink.c in the installed headers; OpenSSL 4 omits it.
+    set(_httpd_openssl_compat "${CMAKE_BINARY_DIR}/httpd-openssl-compat")
+    file(MAKE_DIRECTORY "${_httpd_openssl_compat}/openssl")
+    configure_file("${PROJECT_SOURCE_DIR}/external/openssl/ms/applink.c"
+        "${_httpd_openssl_compat}/openssl/applink.c" COPYONLY)
+    set(_httpd_ssl_args
+        -DENABLE_SSL:STRING=I
+        -DCMAKE_DISABLE_FIND_PACKAGE_OpenSSL:BOOL=FALSE
+        -DOPENSSL_USE_STATIC_LIBS:BOOL=ON
+        "-DOPENSSL_ROOT_DIR:PATH=${_openssl_install}"
+        "-DOPENSSL_INCLUDE_DIR:PATH=${_openssl_install}/include"
+        "-DOPENSSL_SSL_LIBRARY:FILEPATH=${_openssl_install}/lib/libssl.lib"
+        "-DOPENSSL_CRYPTO_LIBRARY:FILEPATH=${_openssl_install}/lib/libcrypto.lib"
+        "-DSSL_EAY_DEBUG:FILEPATH=${_openssl_install}/lib/libssl.lib"
+        "-DSSL_EAY_RELEASE:FILEPATH=${_openssl_install}/lib/libssl.lib"
+        "-DLIB_EAY_DEBUG:FILEPATH=${_openssl_install}/lib/libcrypto.lib"
+        "-DLIB_EAY_RELEASE:FILEPATH=${_openssl_install}/lib/libcrypto.lib"
+        "-DEXTRA_INCLUDES:PATH=${_httpd_openssl_compat}"
+        "-DEXTRA_LIBS:STRING=ws2_32|gdi32|advapi32|crypt32|user32"
+    )
+else()
+    set(_httpd_ssl_args
+        -DENABLE_SSL:STRING=O
+        -DCMAKE_DISABLE_FIND_PACKAGE_OpenSSL:BOOL=TRUE
+        -DEXTRA_INCLUDES:PATH=
+        -DEXTRA_LIBS:STRING=
+    )
+endif()
+
 ExternalProject_Add(httpd-server
     SOURCE_DIR "${PROJECT_SOURCE_DIR}/external/httpd"
     BINARY_DIR "${CMAKE_BINARY_DIR}/httpd-build/httpd-server"
     INSTALL_DIR "${CMAKE_BINARY_DIR}/httpd"
-    DEPENDS httpd-apr-util httpd-pcre2
+    DEPENDS ${_httpd_dependencies}
     CONFIGURE_COMMAND
         "${CMAKE_COMMAND}" -S <SOURCE_DIR> -B "<BINARY_DIR>/$<CONFIG>"
         ${_httpd_generator_args}
@@ -108,7 +140,7 @@ ExternalProject_Add(httpd-server
         "-DPCRE_LIBRARIES:FILEPATH=${HTTPD_TEST_ROOT}/lib/pcre2-8-static$<$<CONFIG:Debug>:d>.lib"
         -DINSTALL_PDB:BOOL=OFF
         -DINSTALL_MANUAL:BOOL=OFF
-        -DENABLE_SSL:STRING=O
+        ${_httpd_ssl_args}
         -DENABLE_HTTP2:STRING=O
         -DENABLE_PROXY_HTTP2:STRING=O
     LIST_SEPARATOR "|"
@@ -134,5 +166,6 @@ ExternalProject_Add_Step(httpd-server prepare-test-runtime
     DEPENDS
         "${PROJECT_SOURCE_DIR}/cmake/PrepareHttpdTest.cmake"
         "${PROJECT_SOURCE_DIR}/cmake/httpd-test.conf.in"
+        "${PROJECT_SOURCE_DIR}/cmake/httpd-test-ssl.conf.in"
         "${PROJECT_SOURCE_DIR}/cmake/httpd-test-index.html"
 )

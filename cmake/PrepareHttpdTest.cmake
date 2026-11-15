@@ -10,6 +10,9 @@ file(MAKE_DIRECTORY
 configure_file("${CMAKE_CURRENT_LIST_DIR}/httpd-test.conf.in"
     "${HTTPD_TEST_ROOT}/conf/test-httpd.conf" @ONLY
 )
+configure_file("${CMAKE_CURRENT_LIST_DIR}/httpd-test-ssl.conf.in"
+    "${HTTPD_TEST_ROOT}/conf/test-httpd-ssl.conf" @ONLY
+)
 configure_file("${CMAKE_CURRENT_LIST_DIR}/httpd-test-index.html"
     "${HTTPD_TEST_ROOT}/test-htdocs/index.html" COPYONLY
 )

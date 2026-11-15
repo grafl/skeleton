@@ -76,7 +76,7 @@ curl.exe --head http://127.0.0.1:8080/test
 curl.exe --include --request POST http://127.0.0.1:8080/test
 ```
 
-`GET /test` responds with HTTP 200 and `mod_test is running.` as plain text.
+`GET /test` responds with HTTP 200 and `libtest1 is running.` as plain text.
 `HEAD /test` returns the same headers without a body. Other methods return
 HTTP 405 and an `Allow` header. The handler is assigned to the `/test` location,
 including its subpaths; static files outside that location keep their normal
@@ -141,9 +141,10 @@ process in a `finally` block. Forced termination can leave a stale PID file
 and produce an unclean-shutdown warning on the next run. Use a dedicated port
 and server directory for parallel test jobs; never stop processes by name.
 
-The test configuration enables HTTP/1.1 static hosting and `mod_test`; it does
-not enable TLS, HTTP/2, CGI, or a reverse proxy. Those require additional
-modules, dependencies, and explicit configuration. PCRE2 JIT is disabled;
+The HTTP test configuration enables HTTP/1.1 static hosting and `mod_test`; it
+does not enable TLS, HTTP/2, CGI, or a reverse proxy. For the separate HTTPS
+configuration and certificate setup, see [HTTPS_TESTING.md](HTTPS_TESTING.md).
+PCRE2 JIT is disabled;
 regex matching uses the interpreter without requiring PCRE2's nested SLJIT
 submodule.
 

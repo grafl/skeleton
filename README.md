@@ -9,7 +9,7 @@ The project has two separate execution paths:
 - `skeleton.exe`: a console application using statically linked APR and APR-util,
   with OpenSSL libraries linked when OpenSSL support is enabled.
 - `httpd.exe`: a local web server loading `test1.dll` and `mod_test.so`, which
-  use the server's shared APR.
+  use the server's shared APR; its optional HTTPS configuration uses OpenSSL.
 - `openssl_smoke.exe`: an integration test linked to the OpenSSL static
   libraries; it is not part of the server request path.
 
@@ -138,8 +138,8 @@ cmake --build build-app --config Debug --target skeleton
 
 OpenSSL builds by default even if the server is disabled. Pass
 `-DSKELETON_BUILD_OPENSSL=OFF` to remove it from `skeleton` and skip its native
-Perl requirement. `skeleton` does not currently call the OpenSSL API; static
-linking may omit unused OpenSSL code. httpd TLS remains disabled.
+Perl requirement and build httpd without `mod_ssl`. `skeleton` does not
+currently call the OpenSSL API; static linking may omit unused OpenSSL code.
 
 Replace `Debug` consistently with `Release` for release builds. The documented
 output paths assume a multi-configuration Visual Studio generator; the
@@ -160,6 +160,7 @@ Do not mix DLLs and import libraries from different configurations.
 | OpenSSL static libraries | `build\openssl\2f4e3a5fec05\Debug\lib\libcrypto.lib` and `libssl.lib` |
 | OpenSSL smoke test | `build\Debug\openssl_smoke.exe` |
 | Test configuration | `build\httpd\Debug\conf\test-httpd.conf` |
+| HTTPS test configuration | `build\httpd\Debug\conf\test-httpd-ssl.conf` |
 | Static HTTP fixtures | `build\httpd\Debug\test-htdocs` |
 | Server error log | `build\httpd\Debug\logs\test-error.log` |
 
@@ -221,8 +222,9 @@ listings, and ignores `.htaccess`. Treat this as a local development
 configuration, especially with `/server-info` enabled. Do not expose it to a
 network or substitute the installed default `httpd.conf`.
 
-TLS and HTTP/2 modules are explicitly disabled for this build. The test
-configuration does not set up CGI or proxy routes.
+For HTTPS with a local test CA, see [HTTPS_TESTING.md](HTTPS_TESTING.md).
+The HTTP configuration does not enable TLS; HTTP/2, CGI, and proxy routes are
+not enabled by these test configurations.
 
 ## Build-system design
 
@@ -266,9 +268,12 @@ builds OpenSSL first. For crypto-only code, link `OpenSSL::Crypto` instead.
 `tests\openssl_smoke.c` demonstrates both TLS context and digest API use.
 
 When enabled, `skeleton` links `OpenSSL::SSL` and transitively
-`OpenSSL::Crypto`. OpenSSL is not linked to `test1`, `mod_test`, or httpd.
-Building it does not enable HTTPS, install certificates, configure `mod_ssl`,
-or change the server's loopback-only HTTP listener.
+`OpenSSL::Crypto`. When enabled, httpd builds `mod_ssl` against the same staged
+OpenSSL libraries; `test1` and `mod_test` do not link OpenSSL. Certificates
+are not generated automatically, and the separate HTTP listener is unchanged.
+See [HTTPS_TESTING.md](HTTPS_TESTING.md) to issue test certificates and use HTTPS.
+For httpd's `abs` utility, the build copies OpenSSL's `ms\applink.c` into a
+build-only compatibility include directory; OpenSSL 4 does not install it.
 
 The root build temporarily creates an APR library-check placeholder to satisfy
 APR-util's configure-time file check. It then removes that placeholder from
@@ -347,5 +352,6 @@ cmake\                  Dependency builds, runtime templates, install helpers
 tests\openssl_smoke.c   OpenSSL link and runtime smoke test
 external\               Third-party dependency source trees
 HTTPD_TESTING.md         Additional local HTTP testing instructions
+HTTPS_TESTING.md         Local CA, certificate issuance, and HTTPS setup
 build\                  Generated outputs; ignored by Git
 ```
